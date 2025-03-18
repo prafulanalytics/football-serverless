@@ -58,12 +58,13 @@ Running Tests
 bashCopy# Test the complete event flow
 ./test/test-event-flow.sh
 
-# Test API query endpoints
+## Test API query endpoints
 ./test/test-api-queries.sh
 
-# Test with a specific event type
+## Test with a specific event type
 
-    ./test/test-event-flow.sh goal
+    ./test/test_match_events.sh
+    ./test/test-match-query.sh
 
 1. Deployment Prerequisites
 
@@ -88,19 +89,19 @@ Local Development
 bashCopy# Install dependencies
 npm install
 
-# Start LocalStack
+## Start LocalStack
 docker-compose up -d
 
-# Deploy to local environment
+## Deploy to local environment
 npm run deploy:local
 
-# Test the local deployment
+## Test the local deployment
 
 Use awslocal apigateway get-rest-apis to retrieve the API ID
 run ./test_match_events.sh
 run ./test-match-query.sh
 
-# Deploy to production environment
+## Deploy to production environment
 npm run deploy:prod
 DynamoDB Schema
 The event data is stored in DynamoDB with the following access patterns:
@@ -131,7 +132,7 @@ S3 Testing
 
 1. awslocal s3 ls s3://football-serverless-local-raw-data/events/
 
-# Get specific details about objects
+## Get specific details about objects
 awslocal s3api list-objects-v2 \
   --bucket football-serverless-local-raw-data
 
