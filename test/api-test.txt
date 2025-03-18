@@ -1,0 +1,245 @@
+Local Account settings
+
+export LOCALSTACK_HOST=127.0.0.1
+export AWS_ENDPOINT_URL=http://127.0.0.1:4566
+export AWS_ENDPOINT=http://host.docker.internal:4566
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+export AWS_SESSION_TOKEN=test
+export AWS_DEFAULT_REGION=us-east-1
+
+
+
+
+Event Ingestion Flow Testing Guide
+1. Local Testing Setup
+
+Prerequisites
+LocalStack installed
+AWS CLI configured for LocalStack
+Your CDK stack deployed to LocalStack
+
+Testing Steps
+1.1 Retrieve API Gateway Details
+bashCopy# List API Gateways
+awslocal apigateway get-rest-apis
+
+Resource Check 
+1. awslocal apigateway get-rest-apis
+3. awslocal dynamodb list-tables
+4. awslocal dynamodb describe-table --table-name "football-serverless-local-events"
+5. awslocal dynamodb scan --table-name EventsTable
+6. awslocal s3 ls: 
+7. awslocal events list-rules
+8. awslocal sqs list-queues
+9. awslocal sqs receive-message --queue-url http://localhost:4566/000000000000/EventDLQ --max-number-of-messages 10
+10. awslocal lambda list-functions
+
+
+S3 Testing
+
+1. awslocal s3 ls s3://football-serverless-local-raw-data/events/
+
+# Get specific details about objects
+awslocal s3api list-objects-v2 \
+  --bucket football-serverless-local-raw-data
+
+2. Event Check:  awslocal s3 ls s3://football-serverless-local-raw-data --recursive 
+
+3. DynamoDB 
+awslocal dynamodb list-tables
+1. football-serverless-local-events
+2. football-serverless-local-matches
+
+awslocal dynamodb put-item \
+  --table-name football-serverless-local-matches \
+  --item '{
+    "pk": {"S": "MATCH#test_match_123"},
+    "sk": {"S": "METADATA#2025-03-17"},
+    "match_id": {"S": "test_match_123"},
+    "timestamp": {"S": "2025-03-17T14:00:00Z"},
+    "home_team": {"S": "Team A"},
+    "away_team": {"S": "Team B"},
+    "status": {"S": "IN_PROGRESS"}
+  }'
+
+awslocal dynamodb scan \
+  --table-name football-serverless-local-matches \
+  --max-items 10
+
+awslocal dynamodb scan \
+  --table-name football-serverless-local-events \
+  --max-items 10
+
+4. Event EventBridge and Dynamo Together
+
+awslocal events put-events \
+  --entries '[
+    {
+      "EventBusName": "football-serverless-local-match-event-bus",
+      "Source": "football.matches.live",
+      "DetailType": "match.event",
+      "Detail": "{\"match_id\":\"test_match_123\",\"event_type\":\"goal\",\"timestamp\":\"2025-03-17T14:00:00Z\",\"team\":\"Home\",\"player\":\"John Doe\",\"score\":\"1-0\"}"
+    }
+  ]' 
+
+  # Publish an event to EventBridge
+awslocal events put-events \
+  --entries '[
+    {
+      "EventBusName": "football-serverless-local-match-event-bus",
+      "Source": "football.matches.live",
+      "DetailType": "match.event",
+      "Detail": "{\"match_id\":\"test_match_123\",\"event_type\":\"goal\",\"timestamp\":\"2025-03-17T14:00:00Z\",\"team\":\"Home\",\"player\":\"John Doe\",\"score\":\"1-0\"}"
+    }
+  ]'
+
+4. Query 
+
+awslocal dynamodb query \
+  --table-name football-serverless-local-matches \
+  --key-condition-expression "pk = :matchKey" \
+  --expression-attribute-values '{
+    ":matchKey": {"S": "MATCH#test_match_123"}
+  }'
+
+
+
+# Note the API ID and root resource ID
+1.2 Send Test Event via API Gateway
+bashCopy# Invoke API Gateway endpoint
+awslocal apigateway test-invoke-method \
+  --rest-api-id "dsizdkzry1" \
+  --resource-id "whlfiejo5t" \
+  --http-method POST \
+  --path-with-query-string "/events" \
+  --body '{
+    "match_id": "test_match_123",
+    "event_type": "goal",
+    "timestamp": "2025-03-17T14:00:00Z",
+    "team": "Home",
+    "player": "John Doe"
+  }'
+
+API 
+prafulupadhyay@iMac football-serverless % curl -X GET "http://localhost:4566/restapis/yfxgpbxvfz/local/_user_request_/matches/flow_test_001/goals" \
+     -H "Content-Type: application/json"
+
+{"message":"Internal Server Error"}%                                                                                                                                               
+prafulupadhyay@iMac football-serverless % curl -X GET "http://localhost:4566/restapis/yfxgpbxvfz/local/_user_request_/matches/flow_test_001/passes" \
+     -H "Content-Type: application/json"
+
+
+2. Verification Checklist
+2.1 Lambda Execution Verification
+bashCopy# Check Lambda function logs
+awslocal logs filter-log-events \
+  --log-group-name /aws/lambda/YOUR_LAMBDA_FUNCTION_NAME
+2.2 S3 Bucket Verification
+bashCopy# List objects in the event bucket
+awslocal s3 ls s3://YOUR_RAW_DATA_BUCKET_NAME/
+
+# Get object details
+awslocal s3api list-objects-v2 \
+  --bucket YOUR_RAW_DATA_BUCKET_NAME
+2.3 EventBridge Verification
+bashCopy# Retrieve events from EventBridge
+awslocal events list-events \
+  --event-bus-name YOUR_EVENT_BUS_NAME
+3. Debugging Workflow
+3.1 Common Troubleshooting Steps
+
+Check Lambda function logs
+Verify IAM permissions
+Confirm EventBridge rule configurations
+Check S3 bucket access rights
+
+3.2 Potential Error Scenarios
+
+Incorrect payload format
+Missing required fields
+Permission issues
+Network connectivity problems
+
+4. Monitoring and Logging
+4.1 Lambda Function Logging
+Ensure your Lambda function includes comprehensive logging:
+typescriptCopyexport const handler = async (event: APIGatewayProxyEvent) => {
+  try {
+    console.log('Received event:', JSON.stringify(event, null, 2));
+    
+    // Parse body
+    const body = JSON.parse(event.body || '{}');
+    console.log('Parsed body:', body);
+
+    // S3 Storage
+    await s3.putObject({
+      Bucket: process.env.EVENT_BUCKET_NAME,
+      Key: `events/${body.match_id}/${Date.now()}.json`,
+      Body: JSON.stringify(body)
+    }).promise();
+    console.log('Event stored in S3');
+
+    // EventBridge Publish
+    await eventBridge.putEvents({
+      Entries: [{
+        EventBusName: process.env.EVENT_BUS_NAME,
+        Source: 'match.event.ingestion',
+        DetailType: body.event_type,
+        Detail: JSON.stringify(body)
+      }]
+    }).promise();
+    console.log('Event published to EventBridge');
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ message: 'Event processed successfully' })
+    };
+  } catch (error) {
+    console.error('Error processing event:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Failed to process event' })
+    };
+  }
+};
+5. Test Scenarios
+5.1 Happy Path
+
+Complete event with all fields
+Verify S3 storage
+Confirm EventBridge publication
+
+5.2 Edge Cases
+
+Minimal payload
+Missing optional fields
+Large payload
+Special characters in data
+
+6. Performance Considerations
+
+Implement request throttling
+Add error handling
+Use Dead Letter Queue for failed events
+
+7. Security Recommendations
+
+Validate input schema
+Implement input sanitization
+Use API Gateway request validation
+Add authentication/authorization
+
+Recommended Testing Tools
+
+Postman
+curl
+AWS SAM CLI
+LocalStack
+Jest for unit testing
+
+Continuous Verification
+
+Set up automated integration tests
+Create monitoring dashboards
+Implement alerts for failed events

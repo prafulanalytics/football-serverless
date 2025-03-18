@@ -1,14 +1,135 @@
-# Welcome to your CDK TypeScript project
+Football Match Events Processing System
+A serverless application for ingesting, processing, and querying football (soccer) match events in real-time.
 
-This is a blank project for CDK development with TypeScript.
+Architecture
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+Overview
+This stack provides a complete serverless solution for processing football match events. The system follows a modern event-driven architecture with the following components:
 
-## Useful commands
+Event Ingestion: Captures events via API Gateway and stores them in S3 while publishing to EventBridge
+Event Processing: Processes events via Lambda functions, supporting both real-time and batch processing
+Event Storage: Stores processed events in DynamoDB with efficient access patterns
+Event Querying: Provides specialized API endpoints for querying specific event types
 
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `npx cdk deploy`  deploy this stack to your default AWS account/region
-* `npx cdk diff`    compare deployed stack with current state
-* `npx cdk synth`   emits the synthesized CloudFormation template
+API Endpoints  (awslocal apigateway get-rest-apis) Use this to replace the id in API ID in test 
+EndpointMethodDescription/eventsPOSTSubmit a new match event/matches/{match_id}/goalsGETRetrieve all goals for a specific match/matches/{match_id}/passesGETRetrieve all passes for a specific match
+Event Submission Format
+jsonCopy{
+  "match_id": "match_123",
+  "event_type": "goal",
+  "timestamp": "2025-03-18T15:30:00Z",
+  "team": "Home",
+  "player": "John Doe",
+  "minute": 15,
+  "second": 20,
+  "score": {
+    "home": 1,
+    "away": 0
+  }
+}
+Supported Event Types
+
+goal: Goal scored by a player
+pass: Pass between players
+foul: Foul committed by a player
+card: Yellow/red card shown to a player
+substitution: Player substitution
+
+Query Parameters for Passes Endpoint
+The /matches/{match_id}/passes endpoint supports the following query parameters:
+
+team: Filter passes by team ("Home" or "Away")
+player: Filter passes involving a specific player
+success: Filter passes by success status (true/false)
+
+Testing Suite
+The project includes comprehensive testing scripts located in the ./test directory:
+Test ScriptDescriptiontest-event-flow.shTests the complete event flow from API to DynamoDB storagetest-api-queries.shTests the goals and passes query endpointstest-local-deploy.shVerifies local infrastructure deployment
+Running Tests
+bashCopy# Test the complete event flow
+./test/test-event-flow.sh
+
+# Test API query endpoints
+./test/test-api-queries.sh
+
+# Test with a specific event type
+./test/test-event-flow.sh goal
+Deployment
+Prerequisites
+
+AWS CLI configured with appropriate credentials
+Node.js 18 or higher
+Docker (for local testing)
+LocalStack (for local development)
+cdklocal synth
+cdklocal bootstrap
+cdklocal deploy
+
+
+export LOCALSTACK_HOST=127.0.0.1
+export AWS_ENDPOINT_URL=http://127.0.0.1:4566
+export AWS_ENDPOINT=http://host.docker.internal:4566
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+export AWS_SESSION_TOKEN=test
+export AWS_DEFAULT_REGION=us-east-1
+
+
+
+Local Development
+bashCopy# Install dependencies
+npm install
+
+# Start LocalStack
+docker-compose up -d
+
+# Deploy to local environment
+npm run deploy:local
+
+# Test the local deployment
+npm run test:local
+Production Deployment
+bashCopy# Deploy to development environment
+npm run deploy:dev
+
+# Deploy to production environment
+npm run deploy:prod
+DynamoDB Schema
+The event data is stored in DynamoDB with the following access patterns:
+
+Primary Key: pk (Partition Key) = SEASON#{season}#MATCH#{match_id}, sk (Sort Key) = EVENT#{event_type}#{timestamp}
+GSI1: gsi1pk = EVENT_TYPE#{event_type}, gsi1sk = {timestamp}
+
+This design enables efficient queries for:
+
+All events for a specific match
+All events of a specific type (goals, passes, etc.)
+Time-ordered event sequences
+
+
+Resource Check 
+1. awslocal apigateway get-rest-apis
+3. awslocal dynamodb list-tables
+4. awslocal dynamodb describe-table --table-name "football-serverless-local-events"
+5. awslocal dynamodb scan --table-name EventsTable
+6. awslocal s3 ls: 
+7. awslocal events list-rules
+8. awslocal sqs list-queues
+9. awslocal sqs receive-message --queue-url http://localhost:4566/000000000000/EventDLQ --max-number-of-messages 10
+10. awslocal lambda list-functions
+
+
+S3 Testing
+
+1. awslocal s3 ls s3://football-serverless-local-raw-data/events/
+
+# Get specific details about objects
+awslocal s3api list-objects-v2 \
+  --bucket football-serverless-local-raw-data
+
+2. Event Check:  awslocal s3 ls s3://football-serverless-local-raw-data --recursive 
+
+3. DynamoDB 
+awslocal dynamodb list-tables
+1. football-serverless-local-events
+2. football-serverless-local-matches
