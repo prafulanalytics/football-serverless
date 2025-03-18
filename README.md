@@ -3,7 +3,7 @@ A serverless application for ingesting, processing, and querying football (socce
 
 ## Architecture
 
-(https://github.com/prafulanalytics/football-serverless/issues/1#issue-2928429373)
+[Architecture Diagram Reference](https://github.com/prafulanalytics/football-serverless/issues/1#issue-2928429373)
 
 ### Overview
     This stack provides a complete serverless solution for processing football match events. The system follows a modern event-driven architecture with the following components:
