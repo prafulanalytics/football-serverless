@@ -11,7 +11,7 @@ import { EventBridgeClient } from '../../lambda/clients/eventbridge-client';
 
 // Configuration Constants
 const EVENT_CONFIG = {
-  VALID_EVENT_TYPES: ['goal', 'yellow_card', 'red_card', 'substitution', 'kickoff', 'halftime', 'fulltime'],
+  VALID_EVENT_TYPES: ['goal', 'yellow_card', 'red_card', 'substitution', 'pass', 'kickoff', 'halftime', 'fulltime'],
   RETRY_STRATEGIES: {
     s3: {
       maxAttempts: 3,
